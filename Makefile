@@ -1,5 +1,5 @@
 # Change this to the path where your pidgin source tree is:
-PIDGIN_SRCDIR=/mnt/data/compiled_from_source/pidgin-2.10.1/pidgin
+PIDGIN_SRCDIR=../pidgin/libpurple
 
 # Comment this out and uncomment the next if you are not building on Windows.
 # Note that on windows, you need to build pidgin fully using 'make -f

@@ -1,7 +1,6 @@
 /* SessionSave by Matt Perry
  * Works for purple 2.0.0
  * Plugin to save your sessions and restore them next time you open purple.
- * modified by Alan Drees on January 20th 2012.
  */
 
 #include "internal.h"
@@ -17,12 +16,6 @@
 #include "version.h"
 
 #include "plugin.h"
-
-#include "gtkconv.h"
-#include "gtkblist.h"
-#include "gtkplugin.h"
-
-#include "gtk/gtk.h"
 
 #define SESSIONSAVE_PLUGIN_ID "core-sessionsave"
 #define SESSIONSAVE_VERSION VERSION ".1"
@@ -40,16 +33,6 @@ typedef struct {
 	char* html;  /* html content of the conv window */
 
 	gboolean restored;  /* not saved - indicates this conversation was already restored this session, so don't re-restore */
-      
-        int x; /* x coord of window to restore */
-        
-        int y; /* y coord of the window to restore */
-
-        int w; /* width of the window to restore */
-   
-        int h; /* height of the window to restore */
-
-        
 } SavedConversation;
 
 GList* saved_conversations = NULL;
@@ -88,7 +71,7 @@ static SavedConversation* saved_conv_new(PurpleConversation* conv)
 {
 	PurpleAccount* account = purple_conversation_get_account(conv);
 	SavedConversation* sconv;
-	int x, y, w, h;
+
 	g_return_val_if_fail(account != NULL, NULL);
 	g_return_val_if_fail(conv != NULL, NULL);
 
@@ -97,12 +80,6 @@ static SavedConversation* saved_conv_new(PurpleConversation* conv)
 	sconv->account.protocol = g_strdup(purple_account_get_protocol_id(account));
 	sconv->type = purple_conversation_get_type(conv);
 	sconv->name = g_strdup(purple_conversation_get_name(conv));
-	gtk_window_get_position (GTK_WINDOW(PIDGIN_CONVERSATION(conv)->win->window),&x, &y);
-	gtk_window_get_size (GTK_WINDOW(PIDGIN_CONVERSATION(conv)->win->window), &w, &h);
-	sconv->x = x;
-	sconv->y = y;
-	sconv->w = w;
-	sconv->h = h;
 	sconv->html = g_strdup("");
 	sconv->restored = TRUE;  /* This conversation already exists, don't restore it this session. */
 
@@ -110,7 +87,7 @@ static SavedConversation* saved_conv_new(PurpleConversation* conv)
 }
 
 static SavedConversation* saved_conv_new_with_data(const char* account_name, const char* account_protocol,
-						   int type_id, const char* name, int x, int y, int w, int h, const char* html)
+												   int type_id, const char* name, const char* html)
 {
 	SavedConversation* sconv;
 
@@ -119,10 +96,6 @@ static SavedConversation* saved_conv_new_with_data(const char* account_name, con
 	sconv->account.protocol = g_strdup(account_protocol);
 	sconv->type = conversation_char_to_type(type_id);
 	sconv->name = g_strdup(name);
-	sconv->x = x;
-	sconv->y = y;
-	sconv->w = w;
-	sconv->h = h;
 	sconv->html = g_strdup(html);
 	sconv->restored = FALSE;
 
@@ -171,7 +144,7 @@ static void saved_conv_restore(SavedConversation* sconv)
 {
 	PurpleAccount* account = saved_conv_get_account(sconv);
 	PurpleConversation* conv;
-		
+
 	if (sconv->restored)
 		return;
 
@@ -180,31 +153,11 @@ static void saved_conv_restore(SavedConversation* sconv)
 
 	if (purple_account_get_connection(account) == NULL)
 		return;
-	
-	//todo: setup to disable for non-pidgin instances, aka finch
-	pidgin_conversations_init();
-	conv = purple_conversation_new(PURPLE_CONV_TYPE_IM, account, sconv->name);
 
-	purple_conversation_present(conv);
-
-	gtk_window_stick(GTK_WINDOW(PIDGIN_CONVERSATION(conv)->win->window));
-	gtk_window_move(GTK_WINDOW(PIDGIN_CONVERSATION(conv)->win->window),sconv->x,sconv->y);
-	gtk_window_resize(GTK_WINDOW(PIDGIN_CONVERSATION(conv)->win->window), sconv->w, sconv->h);
-	
-	
-	//buddylist = pidgin_blist_get_default_gtk_blist();
-	//if(buddylist != NULL){
-	//       gtk_window_stick(GTK_WINDOW(buddylist->window->window));
-	//}else{
-	//  purple_debug_error(SESSIONSAVE_PLUGIN_ID, "not a window");
-	//}
-	
-
-	//setup for configuration window
-	/*pidgin_conv_new(conv);
+	conv = purple_conversation_new(sconv->type, account, sconv->name);
 	if (conv && sconv->html[0]) {
 		purple_conversation_write(conv, NULL, sconv->html, PURPLE_MESSAGE_RAW | PURPLE_MESSAGE_NO_LOG, time(NULL));
-	}*/
+	}
 
 	sconv->restored = TRUE;
 }
@@ -264,39 +217,20 @@ static SavedConversation* saved_convs_find_or_create(PurpleConversation* conv)
 	return sconv;
 }
 
-
-/* this function updates the geometry of all windows on exit*/
-static void update_geometry_on_exit(PurpleConversation* conv)
-{
-        
-        int x, y, w, h;
-        SavedConversation* sconv = saved_convs_find(conv);
-	gtk_window_get_position (GTK_WINDOW(PIDGIN_CONVERSATION(conv)->win->window),&x, &y);
-        gtk_window_get_size (GTK_WINDOW(PIDGIN_CONVERSATION(conv)->win->window), &w, &h);
-        sconv->x = x;
-        sconv->y = y;
-        sconv->w = w;
-        sconv->h = h;
-
-}
-
 static void saved_convs_save()
 {
-  GList* str_list = NULL, *lp;
+	GList* str_list = NULL, *lp;
 
 	purple_debug_info("sessionsave", "saving\n");
 
 	for (lp = saved_conversations; lp; lp = g_list_next(lp)) {
 	    SavedConversation* sconv = (SavedConversation*)lp->data;
-	    char* str = g_strdup_printf("{%s} {%s} {%c} {%s} {%d} {%d} {%d} {%d}",
+	    char* str = g_strdup_printf("{%s} {%s} {%c} {%s} {%s}",
 									sconv->account.name,
 									sconv->account.protocol,
 									conversation_type_to_char(sconv->type),
 									sconv->name,
-					                                sconv->x,
-					                                sconv->y,
-					                                sconv->w,
-					                                sconv->h);
+									sconv->html);
 		str_list = g_list_append(str_list, str);
 	}
 
@@ -323,19 +257,19 @@ static void saved_convs_load()
 		char name[BUF_LEN];
 		char* html = g_new(char, strlen(str));  // known to be big enough for that field
 		SavedConversation* sconv;
-		int x, y, w, h;
 
 		// Note: scanf's %[...] only accepts nonempty strings.  The last field (html) can be
 		// empty, in which case scanf will only set the first 4 fields.  Ensure that html is
 		// null-terminated.
 		*html = 0;
-		if (sscanf(str, "{%[^}]} {%[^}]} {%c} {%[^}]} {%d} {%d} {%d} {%d} {%[^}]}", account_name, account_protocol, &type_id, name, &x, &y, &w, &h, html) < 8) {
+		if (sscanf(str, "{%[^}]} {%[^}]} {%c} {%[^}]} {%[^}]}",
+				   account_name, account_protocol, &type_id, name, html) < 4) {
 			purple_debug_warning("sessionsave", "prefs syntax error: %s", str);
 			g_free(html);
 			continue;
 		}
 
-		sconv = saved_conv_new_with_data(account_name, account_protocol, type_id, name, x, y, w, h, html);
+		sconv = saved_conv_new_with_data(account_name, account_protocol, type_id, name, html);
 
 		g_free(html);
 
@@ -360,9 +294,9 @@ static void saved_convs_restore()
  * Purple Callbacks
  */
 
-/*static void conv_add_message(PurpleConversation* conv, const char* from, const char* message, PurpleMessageFlags type)
+static void conv_add_message(PurpleConversation* conv, const char* from, const char* message, PurpleMessageFlags type)
 {
-   SavedConversation* sconv = saved_convs_find_or_create(conv);
+	SavedConversation* sconv = saved_convs_find_or_create(conv);
 	char* msg_fixed;
 	char* html = NULL, *date = NULL;
 	g_return_if_fail(sconv);
@@ -420,18 +354,17 @@ static void saved_convs_restore()
 	g_free(msg_fixed);
 
 	saved_convs_save();
+}
 
-}*/
-
-/*static void on_wrote_im_msg(PurpleAccount *account, const char *from, const char *message,
+static void on_wrote_im_msg(PurpleAccount *account, const char *from, const char *message,
 							PurpleConversation *conv, PurpleMessageFlags flags, void *data)
 {
 	if (flags & PURPLE_MESSAGE_SEND)
 		from = purple_account_get_username(account);
 	conv_add_message(conv, from, message, flags);
-	}*/
+}
 
-/*#if 0
+#if 0
 static void on_sent_im_msg(PurpleAccount *account, const char *receiver, const char *message)
 {
 	PurpleConversation* conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, receiver, account);
@@ -443,11 +376,12 @@ static void on_sent_chat_msg(PurpleAccount *account, const char *message, int id
 	PurpleConversation* conv = purple_find_chat(purple_account_get_connection(account), id);
 	conv_add_message(conv, message);
 }
-#endif*/
+#endif
 
 static void on_conversation_created(PurpleConversation *conv)
 {
 	saved_convs_find_or_create(conv);
+
 	saved_convs_save();
 }
 
@@ -472,24 +406,13 @@ static void on_quitting(void *data)
 	purple_signal_disconnect(conv_handle, "conversation-created", gplugin, PURPLE_CALLBACK(on_conversation_created));
 	purple_signal_disconnect(conv_handle, "chat-joined", gplugin, PURPLE_CALLBACK(on_conversation_created));
 	purple_signal_disconnect(conv_handle, "deleting-conversation", gplugin, PURPLE_CALLBACK(on_deleting_conversation));
-	g_list_foreach(purple_get_conversations(), (GFunc)update_geometry_on_exit, NULL);
-	saved_convs_save();
+
 	gplugin = NULL;
 }
 
 /*
  * Purple plugin initialization
  */
-
-static void on_blist_create(PurpleBuddyList *blist)
-{
-        PidginBuddyList *pblist = pidgin_blist_get_default_gtk_blist();
-	gtk_window_stick(GTK_WINDOW(pblist->window->window));
-	
-
-	purple_debug_fatal("Sweet","Fail");
-	return;
-}
 
 static gboolean plugin_load(PurplePlugin *plugin)
 {
@@ -500,17 +423,16 @@ static gboolean plugin_load(PurplePlugin *plugin)
 	gplugin = plugin;
 
 	saved_convs_load();
-//    purple_signal_connect(conv_handle, "wrote-im-msg", gplugin, PURPLE_CALLBACK(on_wrote_im_msg), NULL);
-//    purple_signal_connect(conv_handle, "wrote-chat-msg", gplugin, PURPLE_CALLBACK(on_wrote_im_msg), NULL);
+
+    purple_signal_connect(conv_handle, "wrote-im-msg", gplugin, PURPLE_CALLBACK(on_wrote_im_msg), NULL);
+    purple_signal_connect(conv_handle, "wrote-chat-msg", gplugin, PURPLE_CALLBACK(on_wrote_im_msg), NULL);
 //    purple_signal_connect(conv_handle, "sent-im-msg", gplugin, PURPLE_CALLBACK(on_sent_im_msg), NULL);
 //    purple_signal_connect(conv_handle, "sent-chat-msg", gplugin, PURPLE_CALLBACK(on_sent_chat_msg), NULL);
 	purple_signal_connect(conv_handle, "conversation-created", plugin, PURPLE_CALLBACK(on_conversation_created), NULL);
 	purple_signal_connect(conv_handle, "chat-joined", plugin, PURPLE_CALLBACK(on_conversation_created), NULL);
 	purple_signal_connect(conv_handle, "deleting-conversation", plugin, PURPLE_CALLBACK(on_deleting_conversation), NULL);
-	
-	purple_signal_connect(conn_handle, "signed-on", plugin, PURPLE_CALLBACK(on_signed_on), NULL);
 
-	purple_signal_connect(conn_handle, "gtkblist-unhiding",plugin, PURPLE_CALLBACK(on_blist_create), NULL);
+	purple_signal_connect(conn_handle, "signed-on", plugin, PURPLE_CALLBACK(on_signed_on), NULL);
 
 	purple_signal_connect(core_handle, "quitting", plugin, PURPLE_CALLBACK(on_quitting), NULL);
 
@@ -532,21 +454,21 @@ static PurplePluginInfo info =
 	PURPLE_PLUGIN_MAGIC,
 	PURPLE_MAJOR_VERSION,
 	PURPLE_MINOR_VERSION,
-	PURPLE_PLUGIN_STANDARD,                           /**< type           */
+	PURPLE_PLUGIN_STANDARD,                             /**< type           */
 	NULL,                                             /**< ui_requirement */
 	0,                                                /**< flags          */
 	NULL,                                             /**< dependencies   */
-	PURPLE_PRIORITY_DEFAULT,                          /**< priority       */
+	PURPLE_PRIORITY_DEFAULT,                            /**< priority       */
 
 	SESSIONSAVE_PLUGIN_ID,                            /**< id             */
-	N_("SessionSave"),                                /**< name           */
+	N_("SessionSave"),                               /**< name           */
 	SESSIONSAVE_VERSION,                              /**< version        */
 	                                                  /**  summary        */
-	N_("Saves your sessions and restores them next time you start purple.  Modified to restore windows to their previous positions."),
+	N_("Saves your sessions and restores them next time you start purple."),
 	                                                  /**  description    */
-	N_("Saves your sessions and restores them next time you start purple. Modified to restore windows to their previous positions."),
+	N_("Saves your sessions and restores them next time you start purple."),
 	                                                  /**< author         */
-	"Matt Perry feat. Alan Drees" ,
+	"Matt Perry <guy@fscked.org>",
 	"http://somewhere.fscked.org/sessionsave/",       /**< homepage       */
 
 	plugin_load,                                      /**< load           */
