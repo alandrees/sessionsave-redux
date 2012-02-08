@@ -1,0 +1,22 @@
+SessionSave pidgin plugin
+====================
+
+To install, you need a working pidgin source tree (meaning, you have to have
+compiled pidgin from source).
+
+Now, edit the Makefile that came with SessionSave, and change the topmost
+line:
+
+PIDGIN_SRCDIR=/bla/bla/bla
+
+to the paths to your pidgin source tree (where you compiled pidgin).  You might
+have to change the PIDGIN_INSTALLPREFIX as well, but hopefully not.
+
+If you are compiling on a Windows machine, make sure PLATFORM=win32 is
+uncommented. Otherwise, make sure it is commented.
+
+Become root, and type 'make'.  SessionSave should compile and install to the
+plugin directory.
+
+Restart pidgin, and open the Preferences dialog.   Load the SessionSave plugin
+in the Plugin tab.  That's it!
