@@ -1,6 +1,7 @@
 /* SessionSave by Matt Perry
  * Works for purple 2.0.0
  * Plugin to save your sessions and restore them next time you open purple.
+ * modified by Alan Drees on January 20th 2012.
  */
 
 #include "internal.h"
